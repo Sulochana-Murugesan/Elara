@@ -1,35 +1,24 @@
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.clock import Clock
+from kivy.uix.textinput import TextInput
 import openai
 import speech_recognition as sr
-import pyttsx3
 import nltk
-import pyautogui
-import pywhatkit
-import smtplib
-import os
-import subprocess
-import time
-import threading
-import keyboard
-import psutil
-import platform
-import datetime
 import json
-import tkinter as tk
-from tkinter import messagebox
+import os
+from plyer import tts, battery, call, filechooser, notification
+from jnius import autoclass
 
-# Setup
 nltk.download('vader_lexicon')
 from nltk.sentiment import SentimentIntensityAnalyzer
 sentiment_analyzer = SentimentIntensityAnalyzer()
 
-client = openai.OpenAI(api_key="")
+client = openai.OpenAI(api_key="your-api-key-here")
 
 recognizer = sr.Recognizer()
-engine = pyttsx3.init()
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[1].id)
-engine.setProperty('rate', 175)
-
 chat_memory = []
 
 def save_memory():
@@ -41,27 +30,22 @@ def load_memory():
         with open("memory.json", "r") as f:
             return json.load(f)
     return []
-
 chat_memory = load_memory()
 
 def talk(text):
-    engine.say(text)
-    engine.runAndWait()
+    print(f"Elara: {text}")
+    tts.speak(text)
 
 def listen():
     with sr.Microphone() as source:
         recognizer.adjust_for_ambient_noise(source)
-        print("🎙️ Listening for your voice...")
+        print("🎙️ Listening...")
         audio = recognizer.listen(source)
         try:
             text = recognizer.recognize_google(audio)
             print(f"🗣️ Captured: {text}")
             return text
-        except sr.UnknownValueError:
-            print("😕 Could not understand audio")
-            return ""
-        except sr.RequestError as e:
-            print(f"🚨 API Error: {e}")
+        except:
             return ""
 
 def analyze_emotion(text):
@@ -80,130 +64,86 @@ def give_advice(query):
     )
     return response.choices[0].message.content
 
-def open_app(app_name):
-    if "camera" in app_name:
-        subprocess.run("start microsoft.windows.camera:", shell=True)
-    elif "browser" in app_name:
-        subprocess.run("start chrome", shell=True)
-    elif "dialer" in app_name:
-        subprocess.run("start ms-call: ", shell=True)
-    else:
-        talk("Sorry, I can't find that app bestie!")
+class ElaraApp(App):
+    def build(self):
+        self.layout = BoxLayout(orientation='vertical')
+        self.output = Label(text="Hi bestie! I’m Elara 💖", size_hint=(1, 0.3))
+        self.btn = Button(text="🎙️ Talk to Elara", size_hint=(1, 0.1))
+        self.camera_btn = Button(text="📷 Open Camera", size_hint=(1, 0.1))
+        self.call_btn = Button(text="📞 Call Someone", size_hint=(1, 0.1))
+        self.stats_btn = Button(text="📊 Battery Status", size_hint=(1, 0.1))
+        self.file_btn = Button(text="🗂️ Open Files", size_hint=(1, 0.1))
+        self.layout.add_widget(self.output)
+        self.layout.add_widget(self.btn)
+        self.layout.add_widget(self.camera_btn)
+        self.layout.add_widget(self.call_btn)
+        self.layout.add_widget(self.stats_btn)
+        self.layout.add_widget(self.file_btn)
 
-def make_call(contact_number):
-    talk(f"Calling {contact_number} now!")
-    # Simulating a phone call here. You can integrate with Twilio or other APIs.
+        self.btn.bind(on_press=self.start_conversation)
+        self.camera_btn.bind(on_press=self.open_camera)
+        self.call_btn.bind(on_press=self.make_call)
+        self.stats_btn.bind(on_press=self.show_stats)
+        self.file_btn.bind(on_press=self.open_files)
+        return self.layout
 
-def send_whatsapp_message(number, message):
-    pywhatkit.sendwhatmsg_instantly(number, message)
-    talk("I sent your message on WhatsApp!")
+    def start_conversation(self, instance):
+        Clock.schedule_once(lambda dt: self.elara_main(), 0)
 
-def system_stats():
-    battery = psutil.sensors_battery()
-    talk(f"Battery is at {battery.percent} percent.")
-    talk(f"CPU is at {psutil.cpu_percent()} percent usage.")
-
-def read_notifications():
-    talk("Reading notifications isn't set up yet, but I'm learning!")
-
-def file_manager():
-    talk("What file operation would you like, bestie? Open, delete, or list files?")
-    action = listen().lower()
-    if "list" in action:
-        files = os.listdir()
-        talk(f"Here are the files: {', '.join(files)}")
-    elif "open" in action:
-        talk("Which file do you want me to open?")
-        file = listen()
-        if os.path.exists(file):
-            os.startfile(file)
-            talk(f"Opening {file} now!")
-        else:
-            talk("Sorry, I couldn't find that file.")
-    elif "delete" in action:
-        talk("Which file do you want me to delete?")
-        file = listen()
-        if os.path.exists(file):
-            os.remove(file)
-            talk(f"I deleted {file} for you.")
-        else:
-            talk("File not found.")
-
-def daily_affirmation():
-    affirmations = [
-        "You are amazing and capable of great things!",
-        "I believe in you, always.",
-        "You're stronger than you think, bestie.",
-        "Today is going to be a wonderful day!"
-    ]
-    talk(affirmations[datetime.datetime.now().day % len(affirmations)])
-
-def realtime_chat():
-    daily_affirmation()
-    talk("Hi love! I'm Elara, here for you. What’s up?")
-    while True:
+    def elara_main(self):
+        talk("Hey! What’s up?")
         user_input = listen()
-        if user_input == "":
-            continue
-        print(f"You: {user_input}")
-        if "bye" in user_input.lower():
-            talk("Bye bestie! Remember, I'm always here for you.")
-            save_memory()
-            break
+        if not user_input:
+            self.output.text = "Didn't catch that, try again."
+            return
+
+        self.output.text = f"You: {user_input}"
         chat_memory.append({"role": "user", "content": user_input})
+
         emotion = analyze_emotion(user_input)
         if emotion == "negative":
-            talk("Aww, you don’t sound too happy. Want to share what’s bothering you?")
+            talk("Aww, you don’t sound too happy. Want to share?")
         elif emotion == "positive":
             talk("Yay! I love hearing your happy vibes! Tell me everything.")
+
         if "should I" in user_input.lower():
             advice = give_advice(user_input)
-            talk(f"Here's my advice as your BFF: {advice}")
-            continue
-        if "open" in user_input.lower():
-            app_name = user_input.lower().replace("open", "").strip()
-            open_app(app_name)
-            continue
-        if "call" in user_input.lower():
-            contact_number = user_input.lower().replace("call", "").strip()
-            make_call(contact_number)
-            continue
-        if "send whatsapp" in user_input.lower():
-            talk("What message do you want me to send?")
-            msg = listen()
-            number = "+11234567890"
-            send_whatsapp_message(number, msg)
-            continue
-        if "battery" in user_input.lower() or "cpu" in user_input.lower():
-            system_stats()
-            continue
-        if "file" in user_input.lower():
-            file_manager()
-            continue
-        if "notification" in user_input.lower():
-            read_notifications()
-            continue
+            talk(f"Here's my advice: {advice}")
+            self.output.text = f"Elara: {advice}"
+            return
+
         response = client.chat.completions.create(
             model="gpt-4",
             messages=chat_memory
         )
         ai_reply = response.choices[0].message.content
         talk(ai_reply)
+        self.output.text = f"Elara: {ai_reply}"
         chat_memory.append({"role": "assistant", "content": ai_reply})
+        save_memory()
 
-def launch_gui():
-    root = tk.Tk()
-    root.title("Elara - Your AI Best Friend")
-    root.geometry("400x200")
+    def open_camera(self, instance):
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Intent = autoclass('android.content.Intent')
+        MediaStore = autoclass('android.provider.MediaStore')
+        intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        PythonActivity.mActivity.startActivity(intent)
 
-    def start_ai():
-        threading.Thread(target=realtime_chat).start()
-        messagebox.showinfo("Elara is Ready", "I'm ready! Talk to me anytime!")
+    def make_call(self, instance):
+        call.makecall(tel="+1234567890")
 
-    start_button = tk.Button(root, text="Start Elara", command=start_ai, font=("Arial", 14))
-    start_button.pack(pady=50)
+    def show_stats(self, instance):
+        percent = battery.status['percentage']
+        talk(f"Battery level is {percent} percent.")
+        self.output.text = f"Battery: {percent}%"
 
-    root.mainloop()
+    def open_files(self, instance):
+        filechooser.open_file(on_selection=self.selected)
+
+    def selected(self, selection):
+        if selection:
+            talk(f"You selected {selection[0]}")
+            self.output.text = f"Selected: {selection[0]}"
 
 if __name__ == "__main__":
-    launch_gui()
+    ElaraApp().run()
